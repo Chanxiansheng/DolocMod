@@ -303,15 +303,44 @@ namespace ModSettingManagerForDolocTown.Internal
             {
                 private static int _startId; // 起始自定义 ID（避免冲突）
                 private static int _currentId;
+                private static HashSet<int> _allocatedIds; // id使用记录表
+
+                private static UserSettings userSettings;
+                private static Dictionary<UserSettingType, object> data;
 
                 public static void Initialize(int startId = 1000)
                 {
                     _startId = startId;
                     _currentId = startId;
+                    _allocatedIds = new HashSet<int> (); // 清空已分配ID集合
+
+                    // 反射拿到字典
+                    userSettings = DolocAPI.userSettings;
+                    if (userSettings == null)
+                    {
+                        Debug.LogError("[ModSettingInjector] DolocAPI.userSettings 为 null，无法分配 ID");
+                    }
+
+                    data = Traverse.Create(userSettings)
+                        .Field<Dictionary<UserSettingType, object>>("currentData")
+                        .Value;
+                    if (data == null)
+                    {
+                        Debug.LogError("[ModSettingInjector] currentData 为 null，无法进行 ID 去重");
+                    }
                 }
 
                 public static int NextId()
                 {
+                    // 跳过所有已存在的 ID 和不合法ID
+                    while (Enum.IsDefined(typeof(UserSettingType), _currentId)
+                           ||
+                        data.ContainsKey((UserSettingType)_currentId))
+                    {
+                        Debug.LogWarning($"[ModSettingInjector] 跳过已存在ID和不合法ID: {_currentId}");
+                        _currentId++;
+                    }
+
                     // 动态扩容
                     while (_currentId >= CurrentEventArrayLength)
                     {
@@ -323,15 +352,16 @@ namespace ModSettingManagerForDolocTown.Internal
                             Debug.LogError("[ModSettingInjector] 扩容事件表失败！");
                         }
                     }
-                    return _currentId++;
+                    int result = _currentId++;
+                    _allocatedIds.Add(result);   // 显式记录
+                    return result;
                 }
                 /// <summary>
                 /// 判断指定 ID 是否属于 mod 的生成范围
                 /// </summary>
                 public static bool IsModSettingId(UserSettingType id)
                 {
-                    int intId = (int)id;
-                    return intId >= _startId && intId < _currentId;
+                    return _allocatedIds.Contains((int)id);
                 }
 
                 private static int CurrentEventArrayLength => TryGetEventsArray()?.Length ?? 0;
