@@ -22,62 +22,99 @@ namespace ModSettingManagerForDolocTown.Internal
 
         public static ModSettingItemManager Manager { get; } = new ModSettingItemManager();
 
+        private Harmony mainHarmony = new Harmony("main");
 
         public void Awake()
         {
             //Debug.Log("类型名: " + typeof(ModSettingItemManager).AssemblyQualifiedName);
-            //var test = Config.Bind<bool>("test","test",true,new ConfigDescription("",null));
+            //var test = Config.Bind<bool>("test", "test", true, new ConfigDescription("", null));
             //SettingManager.AddToggle(test);
             //settingManager = new ModSettingItemManager();
-            Harmony.CreateAndPatchAll(typeof(ModSettingPatcherDolocTown));
+
+            MethodInfo targetMethod = typeof(UserSettings).GetMethod("OnEverythingLoaded", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+            var postfix = typeof(ModSettingPatcherDolocTown).GetMethod("UserSettings_OnEverythingLoaded_Postfix", BindingFlags.Static | BindingFlags.Public);
+
+            mainHarmony.Patch(targetMethod, postfix: new HarmonyMethod(postfix));
+
+            //Harmony.CreateAndPatchAll(typeof(ModSettingPatcherDolocTown));
         }
 
         // 主注入入口 UserSettings => OnEverythingLoaded
         private static bool _hasPostfix;
 
-        [HarmonyPrefix, HarmonyPatch(typeof(UserSettings), "OnEverythingLoaded")]
-        public static void UserSettings_Postfix()
+        [HarmonyPostfix, HarmonyPatch(typeof(UserSettings), "OnEverythingLoaded")]
+        public static void UserSettings_OnEverythingLoaded_Postfix()
         {
             if (_hasPostfix) return;
             _hasPostfix = true;
 
-            if (!ModSettingDolocTown.DolocReflectionVerify.Verify())
+            if (!ModSettingUtils.DolocReflectionVerify.Verify())
             {
                 Debug.LogError("[ModSettingInjector] Doloc核心结构绑定失败，ModSettingBinder 无法继续！");
                 return;
             }
 
             Debug.Log("[ModSettingInjector] 开始注入模组设置项...");
-            ModSettingDolocTown.InjectIntoUI();
+            ModSettingUtils.InjectIntoUI();
+        }
+
+        public void Start()
+        {
+            StartCoroutine(DeferredPatch());
+        }
+        private System.Collections.IEnumerator DeferredPatch()
+        {
+            // 稍微等一会，确保 InputSystem 初始化完毕
+            yield return new WaitForSecondsRealtime(.5f); 
+            var targetMethod = typeof(DolocAPI).GetMethod(
+                "SaveUserSettings",
+                BindingFlags.Static | BindingFlags.Public,
+                null,
+                new[] { typeof(UserSettings) },
+                null
+            );
+            var prefix = typeof(ModSettingPatcherDolocTown).GetMethod(
+                "DolocAPI_SaveUserSettings_Prefix",
+                BindingFlags.Static | BindingFlags.Public
+            );
+            mainHarmony.Patch(targetMethod, prefix: new HarmonyMethod(prefix));
+            Debug.Log("[Mod] 延迟 patch 成功！");
+        }
+
+        //保存UserSetting时，筛选数据并分离
+        [HarmonyPrefix, HarmonyPatch(typeof(DolocAPI), "SaveUserSettings", new[] { typeof(UserSettings) })]
+        public static bool DolocAPI_SaveUserSettings_Prefix(UserSettings settings)
+        {
+            Debug.Log("检测到UserSetting保存行为");
+
+            var currentData = Traverse.Create(settings).Field<Dictionary<UserSettingType, object>>("currentData").Value;
+
+            if (currentData == null)
+            {
+                Debug.LogWarning("[Mod] currentData 为 null，跳过过滤");
+                return true;
+            }
+
+            var keysToRemove = new List<UserSettingType>();
+
+            foreach (var key in currentData.Keys)
+            {
+                if (ModSettingUtils.SettingIdGenerator.IsModSettingId(key))
+                {
+                    keysToRemove.Add(key);
+                    Debug.Log($"[Mod] 移除自定义配置项：{key}（ID={(int)key}）");
+                }
+            }
+
+            foreach (var key in keysToRemove)
+                currentData.Remove(key);
+
+            return true;
         }
 
 
-        // 保存UserSetting时，筛选数据并分离
-        //[HarmonyPrefix, HarmonyPatch(typeof(FileDataHandler), "SaveUserSettings")]
-        //private static void SaveUserSettings_FilterModData(UserSettings settings)
-        //{
-        //    // 获取 currentData 字段
-        //    var currentDataField = Traverse.Create(settings).Field<Dictionary<UserSettingType, object>>("currentData");
-        //    var dict = currentDataField.Value;
-
-        //    var keysToRemove = new List<UserSettingType>();
-
-        //    foreach (var key in dict.Keys)
-        //    {
-        //        var keyStr = key.ToString();
-        //        if (keyStr.StartsWith("MOD_")) continue;
-
-        //        int id;
-        //        if (int.TryParse(keyStr, out id) && id >= 500)
-        //            keysToRemove.Add(key);
-        //    }
-
-        //    foreach (var key in keysToRemove)
-        //        dict.Remove(key);
-        //}
-
-
-        private static class ModSettingDolocTown
+        private static class ModSettingUtils
         {
             #region Inject工具类
 
@@ -222,7 +259,7 @@ namespace ModSettingManagerForDolocTown.Internal
             }
 
 
-            private static class SettingIdGenerator
+            internal static class SettingIdGenerator
             {
                 private static int _startId; // 起始自定义 ID（避免冲突）
                 private static int _extendLength; // 扩容长度
@@ -242,6 +279,14 @@ namespace ModSettingManagerForDolocTown.Internal
                         throw new InvalidOperationException($"[ModSettingInjector] 已超过最大允许配置项数量 {_extendLength}");
 
                     return _currentId++;
+                }
+                /// <summary>
+                /// 判断指定 ID 是否属于 mod 的生成范围
+                /// </summary>
+                public static bool IsModSettingId(UserSettingType id)
+                {
+                    int intId = (int)id;
+                    return intId >= _startId && intId < MaxId;
                 }
             }
 
