@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using BepInEx;
 using DolocTown;
 using DolocTown.Config;
 using DolocTown.Config.Settings;
-using DolocTown.GameData;
 using HarmonyLib;
 using UnityEngine;
 
@@ -22,7 +22,7 @@ namespace ModSettingManagerForDolocTown.Internal
 
         public static ModSettingItemManager Manager { get; } = new ModSettingItemManager();
 
-        private Harmony mainHarmony = new Harmony("main");
+        private readonly Harmony _mainHarmony = new Harmony("main");
 
         public void Awake()
         {
@@ -35,7 +35,7 @@ namespace ModSettingManagerForDolocTown.Internal
 
             var postfix = typeof(ModSettingPatcherDolocTown).GetMethod("UserSettings_OnEverythingLoaded_Postfix", BindingFlags.Static | BindingFlags.Public);
 
-            mainHarmony.Patch(targetMethod, postfix: new HarmonyMethod(postfix));
+            _mainHarmony.Patch(targetMethod, postfix: new HarmonyMethod(postfix));
 
             //Harmony.CreateAndPatchAll(typeof(ModSettingPatcherDolocTown));
         }
@@ -61,7 +61,7 @@ namespace ModSettingManagerForDolocTown.Internal
 
         public void Start()
         {
-            StartCoroutine(DeferredPatch());
+            //StartCoroutine(DeferredPatch());
         }
         private System.Collections.IEnumerator DeferredPatch()
         {
@@ -78,21 +78,21 @@ namespace ModSettingManagerForDolocTown.Internal
                 "DolocAPI_SaveUserSettings_Prefix",
                 BindingFlags.Static | BindingFlags.Public
             );
-            mainHarmony.Patch(targetMethod, prefix: new HarmonyMethod(prefix));
-            Debug.Log("[Mod] 延迟 patch 成功！");
+            _mainHarmony.Patch(targetMethod, prefix: new HarmonyMethod(prefix));
+            Debug.Log("[ModSettingInjector] 延迟 patch 成功！");
         }
 
-        //保存UserSetting时，筛选数据并分离
+        //保存UserSetting时，筛选数据并分离(弃用）
         [HarmonyPrefix, HarmonyPatch(typeof(DolocAPI), "SaveUserSettings", new[] { typeof(UserSettings) })]
         public static bool DolocAPI_SaveUserSettings_Prefix(UserSettings settings)
         {
-            Debug.Log("检测到UserSetting保存行为");
+            Debug.Log("[ModSettingInjector] 检测到 UserSetting 保存行为");
 
             var currentData = Traverse.Create(settings).Field<Dictionary<UserSettingType, object>>("currentData").Value;
 
             if (currentData == null)
             {
-                Debug.LogWarning("[Mod] currentData 为 null，跳过过滤");
+                Debug.LogWarning("[ModSettingInjector] currentData 为 null，跳过过滤");
                 return true;
             }
 
@@ -103,7 +103,7 @@ namespace ModSettingManagerForDolocTown.Internal
                 if (ModSettingUtils.SettingIdGenerator.IsModSettingId(key))
                 {
                     keysToRemove.Add(key);
-                    Debug.Log($"[Mod] 移除自定义配置项：{key}（ID={(int)key}）");
+                    Debug.Log($"[ModSettingInjector] 移除自定义配置项：{key}（ID={(int)key}）");
                 }
             }
 
@@ -112,6 +112,48 @@ namespace ModSettingManagerForDolocTown.Internal
 
             return true;
         }
+
+
+        private void OnApplicationQuit()
+        {
+            try
+            {
+                var settings = DolocAPI.userSettings;
+                if (settings == null)
+                {
+                    Debug.LogWarning("[ModSettingInjector] DolocAPI.userSettings 为 null，json清理失败");
+                    return;
+                }
+
+                var data = Traverse.Create(settings)
+                    .Field<Dictionary<UserSettingType, object>>("currentData")
+                    .Value;
+
+                var keysToRemove = data.Keys
+                    .Where(ModSettingUtils.SettingIdGenerator.IsModSettingId)
+                    .ToList();
+
+                foreach (var key in keysToRemove)
+                {
+                    data.Remove(key);
+                    Debug.Log($"[ModSettingInjector] 清除退出前的配置项：{key}");
+                }
+
+                if (!DolocAPI.SaveUserSettings(settings))
+                {
+                    Debug.LogWarning("[ModSettingInjector] 退出时保存 调用DolocAPI.SaveUserSettings 失败");
+                }
+                else
+                {
+                    Debug.Log("[ModSettingInjector] 已清理 UserSettings.json");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[ModSettingInjector] 退出清理过程中异常: " + ex);
+            }
+        }
+
 
 
         private static class ModSettingUtils
@@ -169,7 +211,7 @@ namespace ModSettingManagerForDolocTown.Internal
                 // UI更新CM-回调函数
                 DolocAPI.RegisterMsgListener(settingId, (s, args) =>
                 {
-                    Debug.Log("触发回调");
+                    Debug.Log("[ModSettingInjector] 触发回调");
                     if (args is GameEventArgs<object> ev)
                     {
                         // raw 是 UI 值，Round 后正好触发 item.Value 的 setter 做映射/Clamp
@@ -177,15 +219,15 @@ namespace ModSettingManagerForDolocTown.Internal
                         if (ev.value is float rawF)
                         {
                             item.Value = Mathf.RoundToInt(rawF);
-                            Debug.Log("float");
+                            //Debug.Log("float");
                         }
                         else if (ev.value is int rawI)
                         {
                             item.Value = rawI;
-                            Debug.Log("int");
+                            //Debug.Log("int");
                         }
 
-                        Debug.Log("更改值：" + item.Value);
+                        Debug.Log("[ModSettingInjector] 更改值：" + item.Value);
                     }
                 });
 
@@ -304,7 +346,7 @@ namespace ModSettingManagerForDolocTown.Internal
 
                     if (messageSystemObj == null)
                     {
-                        Debug.LogError("[EventArrayExpander] DolocAPI.messageSystem 为 null！");
+                        Debug.LogError("[ModSettingInjector] DolocAPI.messageSystem 为 null！");
                         return false;
                     }
 
@@ -314,14 +356,14 @@ namespace ModSettingManagerForDolocTown.Internal
 
                     if (currentArray == null)
                     {
-                        Debug.LogError("[EventArrayExpander] _events 字段为 null 或类型错误！");
+                        Debug.LogError("[ModSettingInjector] _events 字段为 null 或类型错误！");
                         return false;
                     }
 
                     var oldLen = currentArray.Length;
                     if (oldLen >= requiredLength)
                     {
-                        Debug.Log("[EventArrayExpander] 当前事件表长度已满足，无需扩容。");
+                        Debug.Log("[ModSettingInjector] 当前事件表长度已满足，无需扩容。");
                         return true;
                     }
 
@@ -339,12 +381,12 @@ namespace ModSettingManagerForDolocTown.Internal
                         traverse.Field("_events").SetValue(newArray);
                     }
 
-                    Debug.Log($"[EventArrayExpander] 成功扩容事件表至 {requiredLength}。");
+                    Debug.Log($"[ModSettingInjector] 成功扩容事件表至 {requiredLength}。");
                     return true;
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[EventArrayExpander] 扩容事件表时异常：{ex}");
+                    Debug.LogError($"[ModSettingInjector] 扩容事件表时异常：{ex}");
                     return false;
                 }
             }
@@ -355,7 +397,7 @@ namespace ModSettingManagerForDolocTown.Internal
                 _hasInjected = true;
 
                 // 1. 初始化ID生成器
-                SettingIdGenerator.Initialize(500, 50);
+                SettingIdGenerator.Initialize(666, 66);
 
                 // 2. 扩容 _events[]，防止 IndexOutOfRangeException
                 if (!ExpandEventsArray(SettingIdGenerator.MaxId))
@@ -378,7 +420,7 @@ namespace ModSettingManagerForDolocTown.Internal
                 // Debug
                 foreach (var kv in Manager.SectionDictionary)
                 {
-                    Debug.Log($"[SettingManager] Section: {kv.Key}, Count: {kv.Value.Count}");
+                    Debug.Log($"[ModSettingInjector] Section: {kv.Key}, Count: {kv.Value.Count}");
                 }
                 // 4. 遍历各Section
                 foreach (var kv in Manager.SectionDictionary)
@@ -418,7 +460,7 @@ namespace ModSettingManagerForDolocTown.Internal
                         }
                         catch (Exception ex)
                         {
-                            Debug.LogError($"注入 {item.Key} 类型 {item.ItemType} 失败：{ex}");
+                            Debug.LogError($"[ModSettingInjector] 注入 {item.Key} 类型 {item.ItemType} 失败：{ex}");
                         }
                     }
                 }
@@ -486,7 +528,7 @@ namespace ModSettingManagerForDolocTown.Internal
                             typeof(DolocConfig).GetProperty("Tables", BindingFlags.Public | BindingFlags.Static);
                         if (tablesField == null)
                         {
-                            Debug.LogError("[Mod] DolocConfig.Tables 属性未找到！");
+                            Debug.LogError("[ModSettingInjector] DolocConfig.Tables 属性未找到！");
                             return false;
                         }
 
@@ -496,7 +538,7 @@ namespace ModSettingManagerForDolocTown.Internal
                         var userSettingsProp = Tables.GetType().GetProperty("TbUserSettings");
                         if (userSettingsProp == null)
                         {
-                            Debug.LogError("[Mod] TbUserSettings 属性未找到！");
+                            Debug.LogError("[ModSettingInjector] TbUserSettings 属性未找到！");
                             return false;
                         }
 
@@ -506,7 +548,7 @@ namespace ModSettingManagerForDolocTown.Internal
                         var groupInfosProp = Tables.GetType().GetProperty("TbUserSettingGroupInfos");
                         if (groupInfosProp == null)
                         {
-                            Debug.LogError("[Mod] TbUserSettingGroupInfos 属性未找到！");
+                            Debug.LogError("[ModSettingInjector] TbUserSettingGroupInfos 属性未找到！");
                             return false;
                         }
 
@@ -514,7 +556,7 @@ namespace ModSettingManagerForDolocTown.Internal
                         var rebindProp = Tables.GetType().GetProperty("TbRebindActionInfos");
                         if (rebindProp == null)
                         {
-                            Debug.LogError("[Mod] 未能找到 TbRebindActionInfos");
+                            Debug.LogError("[ModSettingInjector] 未能找到 TbRebindActionInfos");
                             return false;
                         }
 
