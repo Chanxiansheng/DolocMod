@@ -52,7 +52,7 @@ namespace ModSettingManagerForDolocTown.Internal
         }
 
 
-        // 保存UserSetting时分离数据
+        // 保存UserSetting时，筛选数据并分离
         //[HarmonyPrefix, HarmonyPatch(typeof(FileDataHandler), "SaveUserSettings")]
         //private static void SaveUserSettings_FilterModData(UserSettings settings)
         //{
