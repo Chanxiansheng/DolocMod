@@ -154,8 +154,6 @@ namespace ModSettingManagerForDolocTown.Internal
             }
         }
 
-
-
         private static class ModSettingUtils
         {
             #region Inject工具类
@@ -304,22 +302,27 @@ namespace ModSettingManagerForDolocTown.Internal
             internal static class SettingIdGenerator
             {
                 private static int _startId; // 起始自定义 ID（避免冲突）
-                private static int _extendLength; // 扩容长度
                 private static int _currentId;
-                public static int MaxId => _startId + _extendLength;
 
-                public static void Initialize(int startId = 1000, int maxLength = 100)
+                public static void Initialize(int startId = 1000)
                 {
                     _startId = startId;
                     _currentId = startId;
-                    _extendLength = maxLength;
                 }
 
                 public static int NextId()
                 {
-                    if (_currentId >= _startId + _extendLength)
-                        throw new InvalidOperationException($"[ModSettingInjector] 已超过最大允许配置项数量 {_extendLength}");
-
+                    // 动态扩容
+                    while (_currentId >= CurrentEventArrayLength)
+                    {
+                        Debug.LogWarning($"[ModSettingInjector] 目前事件列表长度{CurrentEventArrayLength}，目前ID{_currentId}，执行动态扩容");
+                        // 持续扩容，直到满足需要
+                        int newLength = Math.Max(CurrentEventArrayLength + 32, _currentId + 1);
+                        if (!ExpandEventsArray(newLength))
+                        {
+                            Debug.LogError("[ModSettingInjector] 扩容事件表失败！");
+                        }
+                    }
                     return _currentId++;
                 }
                 /// <summary>
@@ -328,67 +331,101 @@ namespace ModSettingManagerForDolocTown.Internal
                 public static bool IsModSettingId(UserSettingType id)
                 {
                     int intId = (int)id;
-                    return intId >= _startId && intId < MaxId;
+                    return intId >= _startId && intId < _currentId;
                 }
-            }
 
-            /// <summary>
-            /// 使用 Harmony Traverse 扩容 DolocAPI.messageSystem._events 数组
-            /// </summary>
-            private static bool ExpandEventsArray(int requiredLength)
-            {
-                try
+                private static int CurrentEventArrayLength => TryGetEventsArray()?.Length ?? 0;
+                private static Array TryGetEventsArray()
                 {
-                    // Traverse 到 DolocAPI.messageSystem
-                    var messageSystemObj = Traverse.Create(typeof(DolocAPI))
-                        .Field("messageSystem")
-                        .GetValue();
-
-                    if (messageSystemObj == null)
+                    try
                     {
-                        Debug.LogError("[ModSettingInjector] DolocAPI.messageSystem 为 null！");
-                        return false;
-                    }
+                        var messageSystemObj = Traverse.Create(typeof(DolocAPI))
+                            .Field("messageSystem")
+                            .GetValue();
 
-                    // Traverse 到 _events 字段
-                    var traverse = Traverse.Create(messageSystemObj);
-                    var currentArray = traverse.Field("_events").GetValue() as Array;
-
-                    if (currentArray == null)
-                    {
-                        Debug.LogError("[ModSettingInjector] _events 字段为 null 或类型错误！");
-                        return false;
-                    }
-
-                    var oldLen = currentArray.Length;
-                    if (oldLen >= requiredLength)
-                    {
-                        Debug.Log("[ModSettingInjector] 当前事件表长度已满足，无需扩容。");
-                        return true;
-                    }
-
-                    var elementType = currentArray.GetType().GetElementType();
-                    if (elementType != null)
-                    {
-                        var newArray = Array.CreateInstance(elementType, requiredLength);
-                        Array.Copy(currentArray, newArray, oldLen);
-
-                        for (var i = oldLen; i < requiredLength; i++)
+                        if (messageSystemObj == null)
                         {
-                            newArray.SetValue(Activator.CreateInstance(elementType), i);
+                            Debug.LogError("[ModSettingInjector] DolocAPI.messageSystem 为 null！");
+                            return null;
                         }
 
-                        traverse.Field("_events").SetValue(newArray);
-                    }
+                        var currentArray = Traverse.Create(messageSystemObj)
+                            .Field("_events")
+                            .GetValue() as Array;
 
-                    Debug.Log($"[ModSettingInjector] 成功扩容事件表至 {requiredLength}。");
-                    return true;
+                        if (currentArray == null)
+                        {
+                            Debug.LogError("[ModSettingInjector] _events 字段为 null 或类型错误！");
+                        }
+
+                        return currentArray;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"[ModSettingInjector] 获取 _events 时发生异常：{ex}");
+                        return null;
+                    }
                 }
-                catch (Exception ex)
+
+                /// <summary>
+                /// 使用 Harmony Traverse 扩容 DolocAPI.messageSystem._events 数组
+                /// </summary>
+                private static bool ExpandEventsArray(int requiredLength)
                 {
-                    Debug.LogError($"[ModSettingInjector] 扩容事件表时异常：{ex}");
-                    return false;
+                    try
+                    {
+                        // Traverse 到 DolocAPI.messageSystem
+                        var messageSystemObj = Traverse.Create(typeof(DolocAPI))
+                            .Field("messageSystem")
+                            .GetValue();
+
+                        if (messageSystemObj == null)
+                        {
+                            Debug.LogError("[ModSettingInjector] DolocAPI.messageSystem 为 null！");
+                            return false;
+                        }
+
+                        // Traverse 到 _events 字段
+                        var traverse = Traverse.Create(messageSystemObj);
+                        var currentArray = traverse.Field("_events").GetValue() as Array;
+
+                        if (currentArray == null)
+                        {
+                            Debug.LogError("[ModSettingInjector] _events 字段为 null 或类型错误！");
+                            return false;
+                        }
+
+                        var oldLen = currentArray.Length;
+                        if (oldLen >= requiredLength)
+                        {
+                            Debug.Log("[ModSettingInjector] 当前事件表长度已满足，无需扩容。");
+                            return true;
+                        }
+
+                        var elementType = currentArray.GetType().GetElementType();
+                        if (elementType != null)
+                        {
+                            var newArray = Array.CreateInstance(elementType, requiredLength);
+                            Array.Copy(currentArray, newArray, oldLen);
+
+                            for (var i = oldLen; i < requiredLength; i++)
+                            {
+                                newArray.SetValue(Activator.CreateInstance(elementType), i);
+                            }
+
+                            traverse.Field("_events").SetValue(newArray);
+                        }
+
+                        Debug.Log($"[ModSettingInjector] 成功扩容事件表至 {requiredLength}。");
+                        return true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"[ModSettingInjector] 扩容事件表时异常：{ex}");
+                        return false;
+                    }
                 }
+
             }
 
             public static void InjectIntoUI()
@@ -397,18 +434,12 @@ namespace ModSettingManagerForDolocTown.Internal
                 _hasInjected = true;
 
                 // 1. 初始化ID生成器
-                SettingIdGenerator.Initialize(666, 66);
+                SettingIdGenerator.Initialize(666);
 
-                // 2. 扩容 _events[]，防止 IndexOutOfRangeException
-                if (!ExpandEventsArray(SettingIdGenerator.MaxId))
-                {
-                    Debug.LogError("[ModSettingInjector] 扩容事件表失败！");
-                    return;
-                }
 
                 Debug.Log("[ModSettingBinder] 正在注入MOD设置...");
 
-                // 3. 添加标签页
+                // 2. 添加标签页
                 var groupInfo = new UserSettingGroupInfo(
                     GroupId,
                     GroupTitle,
@@ -417,7 +448,7 @@ namespace ModSettingManagerForDolocTown.Internal
                 DolocConfig.Tables.TbUserSettingGroupInfos.DataList.Add(groupInfo);
                 DolocConfig.Tables.TbUserSettingGroupInfos.DataMap[GroupId] = groupInfo;
 
-                // Debug
+                // Debug口
                 foreach (var kv in Manager.SectionDictionary)
                 {
                     Debug.Log($"[ModSettingInjector] Section: {kv.Key}, Count: {kv.Value.Count}");
