@@ -6,26 +6,38 @@ namespace ModSettingManagerForDolocTown.API
 {
     public static class ModSettingAPI
     {
-        public static void AddToggle(ConfigEntry<bool> entry)
+        public static ModSettingBuilder Create()
+        {
+            return new ModSettingBuilder();
+        }
+    }
+    public class ModSettingBuilder
+    {
+        public ModSettingBuilder AddToggle(ConfigEntry<bool> entry)
         {
             Internal.ModSettingPatcherDolocTown.Manager.AddToggle(entry);
+            return this;
         }
 
-        public static void AddSlider(ConfigEntry<int> entry, AcceptableValueRange<int> range, int scale = 1)
+        public ModSettingBuilder AddSlider(ConfigEntry<int> entry, AcceptableValueRange<int> range, int scale = 1)
         {
             Internal.ModSettingPatcherDolocTown.Manager.AddSlider(entry, range, scale);
+            return this;
         }
 
-        public static void AddDropdown(ConfigEntry<string> entry, AcceptableValueList<string> list,
+        public ModSettingBuilder AddDropdown(ConfigEntry<string> entry, AcceptableValueList<string> list,
             bool useL10N = false)
         {
             Internal.ModSettingPatcherDolocTown.Manager.AddDropdown(entry, list, useL10N);
+            return this;
         }
 
-        public static void AddKeyBindDropdown(ConfigEntry<KeyboardShortcut> entry, List<KeyCode> keys,
+        public ModSettingBuilder AddKeyBindDropdown(ConfigEntry<KeyboardShortcut> entry, List<KeyCode> keys,
             bool useL10N = false)
         {
             Internal.ModSettingPatcherDolocTown.Manager.AddKeyBindDropdown(entry, keys, useL10N);
+            return this;
         }
     }
+
 }
