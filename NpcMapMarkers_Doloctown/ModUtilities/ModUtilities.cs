@@ -19,7 +19,7 @@ namespace ModUtilities
         public void Log(string msg, Action<string> debugFn = null)
         {
             if (!IsDebug) return;
-            var fullMsg = Prefix + msg;
+            var fullMsg = $"[{Prefix}] {msg}";
             (debugFn ?? Debug.Log)(fullMsg);
         }
     }
