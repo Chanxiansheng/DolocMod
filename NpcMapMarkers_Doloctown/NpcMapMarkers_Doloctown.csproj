@@ -55,6 +55,11 @@
       <HintPath>Z:\Steam\steamapps\common\Doloc Town\DolocTown_Data\Managed\DOTween.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>Z:\Steam\steamapps\common\Doloc Town\DolocTown_Data\Managed\Newtonsoft.Json.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -79,6 +84,10 @@
       <HintPath>Z:\Steam\steamapps\common\Doloc Town\DolocTown_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>Z:\Steam\steamapps\common\Doloc Town\DolocTown_Data\Managed\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="UnityEngine.TextCoreFontEngineModule">
       <HintPath>Z:\Steam\steamapps\common\Doloc Town\DolocTown_Data\Managed\UnityEngine.TextCoreFontEngineModule.dll</HintPath>
       <Private>False</Private>
@@ -101,6 +110,7 @@
     <Compile Include="deletcode.cs" />
     <Compile Include="ModUtilities\ModUtilities.cs" />
     <Compile Include="main.cs" />
+    <Compile Include="ModUtilities\SpriteExtractor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup />

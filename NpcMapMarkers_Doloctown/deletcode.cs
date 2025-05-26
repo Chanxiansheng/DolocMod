@@ -8,7 +8,16 @@ namespace NpcMapMarkers_Doloctown
 {
     internal class Deletcode
     {
-
+        // 地图缓存
+        //var allMapAreas = FindObjectsOfType<MapArea>();
+        //var d = Traverse.Create(__result).Field<Dictionary<string, MapArea>>("roomAreaCache").Value;
+        //    foreach (var area in allMapAreas)
+        //{
+        //    if (!string.IsNullOrEmpty(area.AreaId))
+        //    {
+        //        d[area.AreaId] = area;
+        //    }
+        //}
         //#region testCode
         //var tryNpc = npcDataManager.MyNpcList[8];
 
