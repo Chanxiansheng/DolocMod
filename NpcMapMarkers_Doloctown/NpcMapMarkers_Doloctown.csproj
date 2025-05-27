@@ -113,6 +113,7 @@
     <Compile Include="ModUtilities\ModUtilities.cs" />
     <Compile Include="main.cs" />
     <Compile Include="ModUtilities\SpriteExtractor.cs" />
+    <Compile Include="ObjectPoolManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup />
