@@ -30,7 +30,6 @@ namespace NpcMapMarkers_Doloctown
         //====================== 配置项字段（示例，可删改） ======================
         private static ConfigEntry<bool> _toggleShowUnknownNpc;
         private static ConfigEntry<string> _stringIconType;
-        //private static ConfigEntry<KeyboardShortcut> _keyActionZ;
 
         private const string Section = ModName;
 
@@ -53,13 +52,6 @@ namespace NpcMapMarkers_Doloctown
                     new ConfigurationManagerAttributes { Order = -1 }
                     )
             );
-
-            //_keyActionZ = Config.Bind(
-            //    Section,
-            //    "触发操作Z的按键",
-            //    new KeyboardShortcut(KeyCode.None),
-            //    new ConfigDescription("用于触发某个特殊操作的快捷键", null, new ConfigurationManagerAttributes { Order = -2 })
-            //);
 
             //TryRegisterWithModSettingManager();
         }
@@ -103,6 +95,11 @@ namespace NpcMapMarkers_Doloctown
                 Logger.Log("初始化失败：" + ex, Debug.LogError);
             }
         }
+
+
+
+
+
 
         public class MapMarkerManager
         {
@@ -164,8 +161,8 @@ namespace NpcMapMarkers_Doloctown
                             tip.iconImg.sprite = DolocAPI.GetAsset<Sprite>("支线任务标记"); 
 
                             //tip.iconImg.sprite = DolocAPI.GetAsset<Sprite>("地点图标-npc");支线任务
-                            }
-                            else
+                        }
+                        else
                         {
                             tip.GetComponent<RectTransform>().pivot = new Vector2(0.5f, 0f);
                             tip.transform.localScale = new Vector3(0.45f, 0.55f, 1f);
@@ -315,20 +312,22 @@ namespace NpcMapMarkers_Doloctown
                     string logMessage = $@"
                     → NPC 名称: {npc.Name}
                       NPC ID: {npc.NpcId}
-                      hasKnownName:{npc.HasKnownName}
-                      OriginTitle:{npc.OriginTitle}
+                      是否认识:{npc.HasKnownName}
+                      中文名:{npc.OriginTitle}
                       原型name: {npc.ProtoName}
                       场景: {npc.Scene}
                       positionWS: {npc.WorldPosition}
                       mapPos: {npc.MapPosition}
-                      状态: {npc.Status}
+                      状态信息: {npc.Status}
                       shouldRunSchedule: {npc.HasSchedule}
-                      IsAtVoidScene：{npc.IsAtVoidScene}
+                      是否在虚空场景：{npc.IsAtVoidScene}
                     ------------------------------";
                     Logger.Log(logMessage);
                 }
                 Logger.Log($"当前NPC列表共{list.Count} 个：", Debug.LogWarning);
             }
+
+
             // 输出当前房间的列表(是否显示未认识NPC)
             public List<NpcInfo> GetNpcListInCurrentMapId(bool isShowUnknownNpc = true)
             {
@@ -349,6 +348,7 @@ namespace NpcMapMarkers_Doloctown
                 }
                 return result;
             }
+
             public class NpcInfo
             {
                 public int NpcId;
@@ -382,6 +382,15 @@ namespace NpcMapMarkers_Doloctown
                     MapPosition = mapPos;
 
                     // 在干嘛
+                    //NpcStatusInfo = npc.NpcStatusInfo;
+                    Status = GetNpcTask(npc);
+
+                    // 是否处于虚空场景
+                    IsAtVoidScene = npc.IsAtVoidScene;
+                }
+
+                private string GetNpcTask(Npc npc)
+                {
                     Type taskType = npc.controller.CurrentTaskType;
                     string taskText;
 
@@ -397,15 +406,10 @@ namespace NpcMapMarkers_Doloctown
                     {
                         taskText = "暂无工作";
                     }
-                    Status = taskText;
-
-
-                    // 是否处于虚空场景
-                    IsAtVoidScene = npc.IsAtVoidScene;
+                    return taskText;
                 }
             }
+
         }
-
-
     }
 }
