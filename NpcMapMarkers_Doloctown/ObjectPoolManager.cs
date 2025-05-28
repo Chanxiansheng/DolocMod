@@ -19,9 +19,8 @@ namespace NpcMapMarkers_Doloctown
             {
                 oldPool.RecycleAll();
                 PoolsWeakTable.Remove(panel); // 移除旧引用
-                Debug.Log($"[NavigationPool] 重置旧池 panel={panel.GetInstanceID()}");
+                ModLog.Logger.Log($"重置旧池 panel={panel.GetInstanceID()}");
             }
-
             var newPool = CreatePool(panel);
             PoolsWeakTable.Add(panel, newPool);
         }
@@ -34,7 +33,7 @@ namespace NpcMapMarkers_Doloctown
             if (PoolsWeakTable.TryGetValue(panel, out var pool))
                 return pool;
 
-            Debug.LogWarning($"[NavigationPool] 尝试获取未初始化的对象池 panel={panel.GetInstanceID()}");
+            ModLog.Logger.Log($"尝试获取未初始化的对象池 panel={panel.GetInstanceID()}", Debug.LogWarning);
             return null;
         }
 
@@ -43,18 +42,52 @@ namespace NpcMapMarkers_Doloctown
         /// </summary>
         private static ObjectPool<DolocNavigationButton> CreatePool(CityMapPanel panel)
         {
-            var parent = Traverse.Create(panel).Field<Transform>("tipRoot").Value;
+            // 1. 获取预制体
             var prefab = DolocAPI.GetAsset<GameObject>(DolocGameAssets.UI_ELEMENT_MAP_MISSION_TIP);
             if (!prefab)
             {
-                Debug.LogError("[NavigationPool] 获取 prefab 失败！");
+                ModLog.Logger.Log("获取 prefab 失败！", Debug.LogError);
                 return null;
             }
-            var pool = new ObjectPool<DolocNavigationButton>(prefab, parent, false, false);
-            pool.OnRecycle += tip => tip.iconMaterial = LocMaterials.UI_MAT_DEFAULT;
+
+            // 2. 获取根节点
+            var tipRoot = Traverse.Create(panel).Field<Transform>("tipRoot").Value;
+            var parent = tipRoot.parent; // 获取 tipRoot 的父物体
+            Transform markerRoot = parent.Find("markerRoot");
+            if (!markerRoot)
+            {
+                var go = new GameObject("markerRoot");
+                markerRoot = go.transform;
+                markerRoot.SetParent(parent);
+
+                markerRoot.localPosition = Vector3.zero;
+                markerRoot.localRotation = Quaternion.identity;
+                markerRoot.localScale = Vector3.one;
+
+            }
+
+            // 保证光标在前
+            var cursor = parent.Find("cursor");
+            if (cursor != null)
+            {
+                int cursorIndex = cursor.GetSiblingIndex();
+                markerRoot.SetSiblingIndex(cursorIndex);
+            }
+
+
+
+            var pool = new ObjectPool<DolocNavigationButton>(prefab, markerRoot, false, false);
+
+            pool.OnRecycle += tip => {
+                tip.iconMaterial = LocMaterials.UI_MAT_DEFAULT;
+                tip.gameObject.SetActive(false); // 回收时隐藏
+            };
+
             pool.RecycleAll();
             pool.CheckCount(10);
-            Debug.Log($"[NavigationPool] 创建新池 panel={panel.GetInstanceID()}");
+            pool.ForEach(tip => tip.gameObject.SetActive(false));
+
+            ModLog.Logger.Log($"创建新池 panel={panel.GetInstanceID()}");
             return pool;
         }
     }

@@ -108,7 +108,6 @@
   <ItemGroup>
     <Compile Include="ConfigurationManagerAttributes.cs" />
     <Compile Include="deletcode.cs" />
-    <Compile Include="main - 备份.cs" />
     <Compile Include="MapMarkerObjectPool.cs" />
     <Compile Include="ModUtilities\ModUtilities.cs" />
     <Compile Include="main.cs" />

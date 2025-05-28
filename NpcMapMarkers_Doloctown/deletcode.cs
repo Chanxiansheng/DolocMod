@@ -3,11 +3,72 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using UnityEngine.UI;
+using UnityEngine;
 
 namespace NpcMapMarkers_Doloctown
 {
     internal class Deletcode
     {
+        //public static class ImageCropper
+        //{
+            //public static void ShowLeftHalf(Image image)
+            //{
+            //    var parent = image.transform.parent;
+            //    var maskGO = new GameObject("RuntimeMask", typeof(RectTransform), typeof(RectMask2D));
+            //    var maskRT = maskGO.GetComponent<RectTransform>();
+            //    maskGO.transform.SetParent(parent, false);
+
+            //    image.transform.SetParent(maskGO.transform, false);
+
+            //    var size = image.rectTransform.sizeDelta;
+            //    maskRT.sizeDelta = new Vector2(size.x * 0.4f, size.y);
+            //    maskRT.pivot = image.rectTransform.pivot;
+            //    maskRT.anchorMin = image.rectTransform.anchorMin;
+            //    maskRT.anchorMax = image.rectTransform.anchorMax;
+            //    maskRT.anchoredPosition = image.rectTransform.anchoredPosition;
+            //}
+        //    public static void ShowLeftHalf(Image image)
+        //    {
+        //        var parent = image.transform.parent;
+        //        if (parent == null) return;
+
+        //        Transform existingMaskTransform = parent.Find("RuntimeMask");
+        //        if (existingMaskTransform != null)
+        //        {
+        //            if (image.transform.parent != existingMaskTransform)
+        //                image.transform.SetParent(existingMaskTransform, false);
+        //            return;
+        //        }
+
+        //        var maskGO = new GameObject("RuntimeMask", typeof(RectTransform), typeof(RectMask2D));
+        //        var maskRT = maskGO.GetComponent<RectTransform>();
+
+        //        maskGO.transform.SetParent(parent, false);
+        //        image.transform.SetParent(maskGO.transform, false);
+
+        //        var size = image.rectTransform.sizeDelta;
+
+        //        // 关键调整 - 左对齐遮罩
+        //        maskRT.pivot = new Vector2(0, image.rectTransform.pivot.y);
+        //        maskRT.anchorMin = new Vector2(0, image.rectTransform.anchorMin.y);
+        //        maskRT.anchorMax = new Vector2(0, image.rectTransform.anchorMax.y);
+
+        //        maskRT.sizeDelta = new Vector2(size.x * 0.5f, size.y);
+
+        //        // 横向位置靠左，不偏移
+        //        maskRT.anchoredPosition = new Vector2(0, image.rectTransform.anchoredPosition.y);
+
+        //        // 让图片相对遮罩不偏移
+        //        image.rectTransform.anchoredPosition = Vector2.zero;
+        //    }
+
+
+        //}
+
+
+
+
         // 地图缓存
         //var allMapAreas = FindObjectsOfType<MapArea>();
         //var d = Traverse.Create(__result).Field<Dictionary<string, MapArea>>("roomAreaCache").Value;

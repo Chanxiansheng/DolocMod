@@ -11,6 +11,7 @@ using System.Reflection;
 using RedSaw;
 using UnityEngine;
 using DolocTown.Config.NPC;
+using UnityEngine.UI;
 using static NpcMapMarkers_Doloctown.NpcDataManager;
 using XLua.TemplateEngine;
 
@@ -128,9 +129,7 @@ namespace NpcMapMarkers_Doloctown
             var pool = ObjectPoolManager.Get(__instance);
 
             var markerManager = new MapMarkerManager(__instance, pool, _stringIconType.Value);
-
             markerManager.RegisterMarker(npcList);
-
         }
 
         // 3. 关闭地图注销
@@ -146,14 +145,12 @@ namespace NpcMapMarkers_Doloctown
     public class MapMarkerManager
     {
         private readonly CityMapPanel cityMapPanel;
-        private readonly Traverse traverse_cityMapPanel;
         private readonly ObjectPool<DolocNavigationButton> tipPool;
         private string _iconType;
 
         public MapMarkerManager(CityMapPanel Panel, ObjectPool<DolocNavigationButton> Pool,string iconType)
         {
             cityMapPanel = Panel;
-            traverse_cityMapPanel = Traverse.Create(cityMapPanel);
 
             tipPool = Pool;
 
@@ -165,45 +162,48 @@ namespace NpcMapMarkers_Doloctown
         }
         void ResetTip(DolocNavigationButton tip)
         {
+            var rt = tip.GetComponent<RectTransform>();
+            //重置锚点和位置
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = Vector2.zero;
+            rt.sizeDelta = new Vector2(40, 40);
+            
+
+            // 限制 iconImg 尺寸
+            var iconRt = tip.iconImg.GetComponent<RectTransform>();
+            iconRt.sizeDelta = rt.sizeDelta;
+            iconRt.anchorMin = new Vector2(0.5f, 0.5f);
+            iconRt.anchorMax = new Vector2(0.5f, 0.5f);
+            iconRt.anchoredPosition = Vector2.zero;  //居中
+
             // 清空图标
             tip.iconImg.sprite = null;
-
             // 重置颜色
             tip.iconImg.color = Color.white;
-
+            tip.backgroundColor = Color.white;
             // 重置缩放
             tip.transform.localScale = Vector3.one;
-
             // 重置 alpha
             tip.alpha = 1f;
-
-            // 可选：重置大小、偏移、pivot 等
-            tip.iconSize = new Vector2(32, 32); // 你的默认大小
-
-            //tip.GetComponent<RectTransform>().pivot = new Vector2(0.5f, 0.5f);
-            if (tip.rectTransform != null)
-            {
-                tip.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            }
-
-            tip.position = Vector2.zero;
-
-            // 移除监听器
-            //tip.onPointerEnter.RemoveAllListeners();
-            //tip.onPointerExit.RemoveAllListeners();
+            //移除监听器
+            tip.onPointerEnter.RemoveAllListeners();
+            tip.onPointerExit.RemoveAllListeners();
         }
-        public void ConfigureMarker(DolocNavigationButton tip, NpcInfo npc)
+        public void ConfigureMarker(DolocNavigationButton tip, NpcInfo npc, bool isAbnormalPos)
         {
             ResetTip(tip);  //初始化 tip
 
-            tip.gameObject.SetActive(true);
-
-            tip.iconImg.gameObject.SetActive(true);
-
             Debug.Log($"iconImg activeSelf = {tip.iconImg.gameObject.activeSelf}, sprite = {tip.iconImg.sprite}");
 
-            // 随机所有偏移避免完全重叠
-            tip.position = npc.MapPosition + new Vector2(UnityEngine.Random.Range(-3f, 3f), 0f);
+            // 坐标
+            tip.position = npc.MapPosition;
+            // 随机偏移避免完全重叠 
+            tip.position += new Vector2(UnityEngine.Random.Range(-3f, 3f), 0f);
+            // 贴地
+            tip.position += new Vector2(0f, -5f);
+            // 透明度
+            tip.alpha = 0.8f; 
 
             switch (_iconType)
             {
@@ -211,34 +211,57 @@ namespace NpcMapMarkers_Doloctown
                     {
                         if (npc.HasKnownName)
                         {
-                            tip.GetComponent<RectTransform>().pivot = new Vector2(0.5f, 0f);
-                            tip.transform.localScale = new Vector3(0.65f, 0.65f, 1f);
-                            tip.iconImg.color = ColorFrom255(7, 97, 255);//蓝色
-                            tip.alpha = 0.8f; //透明度
-                            tip.position = tip.position + new Vector2(0f, -4f);//贴地
                             tip.iconImg.sprite = DolocAPI.GetAsset<Sprite>("支线任务标记");
-
-                            //tip.iconImg.sprite = DolocAPI.GetAsset<Sprite>("地点图标-npc");支线任务
+                            tip.iconSize = new Vector2(24f, 32f);
+                            tip.iconImg.color = ColorFrom255(120, 166, 85);//绿色
                         }
                         else
                         {
-                            tip.GetComponent<RectTransform>().pivot = new Vector2(0.5f, 0f);
-                            tip.transform.localScale = new Vector3(0.45f, 0.55f, 1f);
-                            tip.iconImg.color = ColorFrom255(82, 93, 125);
-                            tip.alpha = 0.8f; //透明度
-                            tip.iconImg.sprite = DolocAPI.GetAsset<Sprite>("ui_miniicon_default");
+                            tip.iconImg.sprite = DolocAPI.GetAsset<Sprite>("支线任务标记");
+                            tip.iconSize = new Vector2(24f, 32f);
+                            tip.iconImg.color = ColorFrom255(111, 111, 111);//灰色
                         }
                         break;
                     }
                 case "Avatar":
-                    {
-                        var iconSpriteName = $"{npc.Name}_icon";
+                {
+                        string iconSpriteName;
+                        // 处理命名不一致
+                        switch (npc.OriginTitle)
+                        {
+                            case "加百列":
+                            {
+                                iconSpriteName = "加百利-待机0";
+                                break;
+                            }
+                            case "莉卡":
+                            {
+                                iconSpriteName = "莉卡贝奇-待机0";
+                                break;
+                            }
+                            case "库玛桑":
+                            {
+                                iconSpriteName = "库马桑-待机0";
+                                break;
+                            }
+                            case "洛维那":
+                            {
+                                iconSpriteName = "洛维耶-待机0";
+                                break;
+                            }
+                            default:
+                            {
+                                iconSpriteName = $"{npc.OriginTitle}-待机0";
+                                break;
+                            }
+                        }
                         tip.iconImg.sprite = DolocAPI.GetAsset<Sprite>(iconSpriteName);
-                        tip.GetComponent<RectTransform>().pivot = new Vector2(0.5f, 0f);
-                        tip.iconSize = new Vector2(73f, 27f);
-                        tip.transform.localScale = new Vector3(0.8f, 0.8f, 1f);
-                        tip.alpha = 0.8f; //透明度
 
+                        //if (!tip.iconImg.sprite)
+                        //{
+                        //    tip.iconImg.sprite = DolocAPI.GetAsset<Sprite>($"{npc.Name}_icon");
+                        //}
+                        tip.iconSize = new Vector2(40f, 40f);
                         break;
                     }
                 default:
@@ -246,23 +269,24 @@ namespace NpcMapMarkers_Doloctown
                     break;
             }
 
-
-
             //  创建 hover 文本;添加 hover 监听器
-            TextGroup textGroup = new TextGroup(npc.OriginTitle + npc.Name, npc.Scene + " - " + npc.Status, npc.MapPosition.ToString("F2"));
+            string hoverTitle = npc.OriginTitle + npc.Name;
+            string hoverInfo = npc.Scene + " - " + npc.Status;
+            string hoverContent = npc.MapPosition.ToString("F2");
+
+            if (isAbnormalPos)
+            {
+                hoverTitle += "(该角色坐标可能异常)";
+            }
+
+            TextGroup textGroup = new TextGroup(hoverTitle, hoverInfo, hoverContent);
+
             tip.onPointerEnter.AddListener(delegate (int _)
             {
-                traverse_cityMapPanel.Property("latestHoveredObject").SetValue(tip.gameObject);
-                traverse_cityMapPanel.Method("AdjustCursorPosition", new object[] { tip.position }).GetValue();
-
                 tip.HoverText(textGroup, UIAlignmentType.TopMiddle, UIAlignmentType.BottomMiddle);
             });
             tip.onPointerExit.AddListener(delegate (int _)
             {
-                if (traverse_cityMapPanel.Property("latestHoveredObject").GetValue<GameObject>() == tip.gameObject)
-                {
-                    traverse_cityMapPanel.Property("latestHoveredObject").SetValue(null);
-                }
                 tip.HideHoverBox();
             });
         }
@@ -270,74 +294,66 @@ namespace NpcMapMarkers_Doloctown
         public void RegisterMarker(List<NpcInfo> list)
         {
             var temCount = 0;
+            // 先回收池中所有tip，隐藏全部，防止旧数据残留
+            tipPool.RecycleAll(); 
 
             foreach (var npc in list)
             {
-                temCount++;
-                Debug.Log(temCount);
+                ModLog.Logger.Log((++temCount).ToString());
+                ModLog.Logger.Log($"{npc.OriginTitle}-{npc.Name}");
 
-                // 1. 从对象池中取一个新的导航按钮
-                //var tip = tipPool.Next;
+                // 从对象池中取一个新的导航按钮
                 var tip = tipPool.Next;
+                if (tip) tip.gameObject.SetActive(false);
 
                 if (!tip)
                 {
-                    Debug.LogError("未能从池中获取 tip 对象！");
+                    tipPool.Recycle(tip);
+                    ModLog.Logger.Log("未能从池中获取 tip 对象！",Debug.LogError);
+                    continue;
+                }
+                if (npc.IsAtVoidScene)
+                {
+                    tipPool.Recycle(tip);
+                    ModLog.Logger.Log("NPC位于虚空", Debug.LogError);
                     continue;
                 }
 
-                ConfigureMarker(tip, npc);
+                // 缓存异常排除
+                DolocAPI.QueryRoom(npc.Scene, out Room room);
+                MapArea mapArea;
+                var roomAreaCache = Traverse.Create(cityMapPanel).Field<Dictionary<string, MapArea>>("roomAreaCache").Value;
 
-                Debug.Log($"iconImg activeSelf = {tip.iconImg.gameObject.activeSelf}, sprite = {tip.iconImg.sprite}");
+                if (!roomAreaCache.TryGetValue(room.SceneRawName, out mapArea) && !roomAreaCache.TryGetValue(room.RoomId, out mapArea))
+                {
+                    ModLog.Logger.Log($"{npc.OriginTitle}所在房间{room.RoomId}缓存异常", Debug.LogError);
+                    continue;
+                }
 
-                Debug.Log($"{tip.iconImg.name} sortingLayer: {tip.iconImg.canvas.sortingLayerID}, order: {tip.iconImg.canvas.sortingOrder}");
+                // 判断npc坐标是否在四角
+                var percent = room.Geometry.CalPosPercent(npc.WorldPosition);
+                bool isCornerPos = 
+                    (Mathf.Approximately(percent.x, 0f) && Mathf.Approximately(percent.y, 0f)) ||
+                    (Mathf.Approximately(percent.x, 0f) && Mathf.Approximately(percent.y, 1f)) ||
+                    (Mathf.Approximately(percent.x, 1f) && Mathf.Approximately(percent.y, 0f)) ||
+                    (Mathf.Approximately(percent.x, 1f) && Mathf.Approximately(percent.y, 1f));
 
-                Debug.Log($@"
-                GameObject active: {tip.iconImg.gameObject.activeSelf}
-                Image.enabled: {tip.iconImg.enabled}
-                Sprite name: {tip.iconImg.sprite?.name}
-                Color: {tip.iconImg.color}
-                Rect size: {tip.iconImg.rectTransform.rect.size}
-                Image.type: {tip.iconImg.type}
-                ");
+                // 世界坐标异常
+                bool isZeroPos = Mathf.Approximately(npc.WorldPosition.x, 0f)&& Mathf.Approximately(npc.WorldPosition.y, 0f);
+
+                // 坐标异常添加额外信息
+                bool isAbnormalPos = isCornerPos || isZeroPos;
 
 
-                // 调试
-                #region 调试
-                //Debug.LogWarning("*********************************");
-                //DolocAPI.QueryRoom(npc.Scene, out Room room);
-                //if (npc.IsAtVoidScene)
-                //{
-                //    Debug.LogError("位于虚空");
-                //}
-                //Debug.Log($"[调试NPC] {npc.OriginTitle}-{npc.Name} in {room.RoomId}");
+                ConfigureMarker(tip, npc, isAbnormalPos);
 
-                //MapArea mapArea;
-                //var roomAreaCache = Traverse.Create(cityMapPanel).Field<Dictionary<string, MapArea>>("roomAreaCache").Value;
 
-                //if (!roomAreaCache.TryGetValue(room.SceneRawName, out mapArea) && !roomAreaCache.TryGetValue(room.RoomId, out mapArea))
-                //{
-                //    Debug.Log("条件失败：进入 roomAreaCache.TryGetValue");
-                //    continue;
-                //}
+                tip.gameObject.SetActive(true);
 
-                //Debug.Log($"WorldPosition: {npc.WorldPosition},MapPosition: {npc.MapPosition}");
-
-                //var percent = room.Geometry.CalPosPercent(npc.WorldPosition);
-                //var uiPos = mapArea.GetPosByPercent(percent.x, percent.y);
-
-                //Debug.Log($@"
-                //           转换后Percent: {percent}
-                //           转换后 MapPosition: {uiPos}
-                //           转换后 MapArea pos: {mapArea.position}
-                //           MapArea size: {mapArea.size}");
-                //Debug.LogWarning("---------------------------------");
-                #endregion
-
+                ModLog.Logger.Log($"WorldPosition: {npc.WorldPosition} - MapPosition: {npc.MapPosition} - 转换后Percent: {percent}");
 
             }
-            Debug.LogError($"当前NPC列表共{temCount} 个：");
-
+            ModLog.Logger.Log($"当前NPC列表共{temCount} 个：");
         }
     }
 
