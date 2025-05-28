@@ -10,11 +10,7 @@ using System.Linq;
 using System.Reflection;
 using RedSaw;
 using UnityEngine;
-using DolocTown.Config.NPC;
-using UnityEngine.UI;
 using static NpcMapMarkers_Doloctown.NpcDataManager;
-using XLua.TemplateEngine;
-
 
 // using ModSettingManagerForDolocTown.API;
 
@@ -22,7 +18,7 @@ namespace NpcMapMarkers_Doloctown
 {
     public static class ModLog
     {
-        public static readonly ModLogger Logger = new ModLogger("NpcMapMarkers_Doloctown", isDebug: true);
+        public static readonly ModLogger Logger = new ModLogger("NpcMapMarkers_Doloctown", isDebug: false);
     }
 
     [BepInPlugin(ModGuid, ModName, ModVersion)]
@@ -32,12 +28,10 @@ namespace NpcMapMarkers_Doloctown
         private const string ModName = "NpcMapMarkers_Doloctown";
         private const string ModVersion = "1.0";
 
-
-        //====================== 配置项字段（示例，可删改） ======================
         private static ConfigEntry<bool> _toggleShowUnknownNpc;
         private static ConfigEntry<string> _stringIconType;
 
-        private const string Section = ModName;
+        private const string Section = "NpcMapMarkers";
 
         private void SetupConfig()
         {
@@ -52,14 +46,14 @@ namespace NpcMapMarkers_Doloctown
             _stringIconType = Config.Bind(
                 Section,
                 "图标类型",
-                "Simple",
+                "Avatar",
                 new ConfigDescription("图标类型", 
-                    new AcceptableValueList<string>("Simple", "Avatar"), 
+                    new AcceptableValueList<string>("Avatar", "Simple"), 
                     new ConfigurationManagerAttributes { Order = -1 }
                     )
             );
 
-            //TryRegisterWithModSettingManager();
+            TryRegisterWithModSettingManager();
         }
 
         private void TryRegisterWithModSettingManager()
@@ -70,12 +64,13 @@ namespace NpcMapMarkers_Doloctown
                 try
                 {
                     ModLog.Logger.Log("发现 ModSettingAPI，尝试注入设置项...");
-                    dynamic api = apiType.GetMethod("Create").Invoke(null, null);
+                    dynamic api = apiType.GetMethod("Create")?.Invoke(null, null);
 
-                    // 示例注册（取消注释并替换变量）
-                    // api.AddToggle(_toggleFeatureX);
-                    // api.AddSlider(_numericParameterY);
-                    // api.AddKeyBind(_keyActionZ);
+                    if (api == null) return;
+
+                    api.AddToggle(_toggleShowUnknownNpc);
+                    api.AddDropdown(_stringIconType, new AcceptableValueList<string>("Avatar", "Simple"));
+
                 }
                 catch (Exception ex)
                 {
@@ -93,7 +88,7 @@ namespace NpcMapMarkers_Doloctown
             try
             {
                 SetupConfig();
-                Harmony.CreateAndPatchAll(typeof(NpcMapMarkers));
+                Harmony.CreateAndPatchAll(typeof(CityMapPanelPatches));
                 ModLog.Logger.Log("MOD 启动并完成 Harmony 注入！");
             }
             catch (Exception ex)
@@ -102,67 +97,68 @@ namespace NpcMapMarkers_Doloctown
             }
         }
 
-
-        // 1. 池初始化
-        [HarmonyPostfix, HarmonyPatch(typeof(CityMapPanel), "__Init")]
-        private static void CityMapPanel_Init_Postfix(CityMapPanel __instance)
+        public static class CityMapPanelPatches
         {
-            ObjectPoolManager.InitPool(__instance);
-        }
+            // 1. 池初始化
+            [HarmonyPostfix, HarmonyPatch(typeof(CityMapPanel), "__Init")]
+            private static void CityMapPanel_Init_Postfix(CityMapPanel __instance)
+            {
+                ObjectPoolManager.InitPool(__instance);
+            }
 
+            // 2. 打开地图注册
+            [HarmonyPostfix, HarmonyPatch(typeof(CityMapPanel), "Register")]
+            private static void CityMapPanel_Register_Postfix(CityMapPanel __instance)
+            {
+                ModLog.Logger.Log("打开地图" + __instance.MapId);  // 当前地图id string
 
-        // 2. 打开地图注册
-        [HarmonyPostfix, HarmonyPatch(typeof(CityMapPanel), "Register")]
-        private static void CityMapPanel_Register_Postfix(CityMapPanel __instance)
-        {
-            ModLog.Logger.Log("打开地图"+__instance.MapId);  // 当前地图id string
+                // 提取 NPC 列表
+                var npcManager = DolocAPI.archiveHandle?.cityData.npcManager;
+                if (npcManager == null) return;
+                var npcs = npcManager.AllNpcs;
+                var npcDataManager = new NpcDataManager(__instance, npcs);
+                var npcList = npcDataManager.GetNpcListInCurrentMapId(_toggleShowUnknownNpc.Value);
+                //npcDataManager.DebugNpcInfo(npcList); // 用于验证 npcList 正确性
 
-            // 提取 NPC 列表
-            var npcManager = DolocAPI.archiveHandle?.cityData.npcManager;
-            if (npcManager == null) return;
-            var npcs = npcManager.AllNpcs;
-            var npcDataManager = new NpcDataManager(__instance, npcs);
-            var npcList = npcDataManager.GetNpcListInCurrentMapId(_toggleShowUnknownNpc.Value);
-            //npcDataManager.DebugNpcInfo(npcList); // 用于验证 npcList 正确性
+                var pool = ObjectPoolManager.Get(__instance);
 
+                var markerManager = new MapMarkerManager(__instance, pool, _stringIconType.Value);
+                markerManager.RegisterMarker(npcList);
+            }
 
-            var pool = ObjectPoolManager.Get(__instance);
-
-            var markerManager = new MapMarkerManager(__instance, pool, _stringIconType.Value);
-            markerManager.RegisterMarker(npcList);
-        }
-
-        // 3. 关闭地图注销
-        [HarmonyPostfix, HarmonyPatch(typeof(CityMapPanel), "UnRegister")]
-        private static void CityMapPanel_UnRegister_Postfix(CityMapPanel __instance)
-        {
-            var pool = ObjectPoolManager.Get(__instance);
-            pool?.RecycleAll();
+            // 3. 关闭地图注销
+            [HarmonyPostfix, HarmonyPatch(typeof(CityMapPanel), "UnRegister")]
+            private static void CityMapPanel_UnRegister_Postfix(CityMapPanel __instance)
+            {
+                var pool = ObjectPoolManager.Get(__instance);
+                pool?.RecycleAll();
+            }
         }
 
     }
 
     public class MapMarkerManager
     {
-        private readonly CityMapPanel cityMapPanel;
-        private readonly ObjectPool<DolocNavigationButton> tipPool;
-        private string _iconType;
+        private readonly CityMapPanel _cityMapPanel;
+        private readonly ObjectPool<DolocNavigationButton> _markerPool;
+        private readonly string _iconType;
 
-        public MapMarkerManager(CityMapPanel Panel, ObjectPool<DolocNavigationButton> Pool,string iconType)
+        public MapMarkerManager(CityMapPanel panel, ObjectPool<DolocNavigationButton> pool, string iconType)
         {
-            cityMapPanel = Panel;
+            _cityMapPanel = panel;
 
-            tipPool = Pool;
+            _markerPool = pool;
 
             _iconType = iconType;
         }
-        Color ColorFrom255(int r, int g, int b, float alpha = 1f)
+
+        private Color ColorFrom255(int r, int g, int b, float alpha = 1f)
         {
             return new Color(r / 255f, g / 255f, b / 255f, alpha);
         }
-        void ResetTip(DolocNavigationButton tip)
+        private void ResetTip(DolocNavigationButton marker)
         {
-            var rt = tip.GetComponent<RectTransform>();
+            var rt = marker.GetComponent<RectTransform>();
             //重置锚点和位置
             rt.anchorMin = new Vector2(0.5f, 0.5f);
             rt.anchorMax = new Vector2(0.5f, 0.5f);
@@ -171,39 +167,38 @@ namespace NpcMapMarkers_Doloctown
             
 
             // 限制 iconImg 尺寸
-            var iconRt = tip.iconImg.GetComponent<RectTransform>();
+            var iconRt = marker.iconImg.GetComponent<RectTransform>();
             iconRt.sizeDelta = rt.sizeDelta;
             iconRt.anchorMin = new Vector2(0.5f, 0.5f);
             iconRt.anchorMax = new Vector2(0.5f, 0.5f);
             iconRt.anchoredPosition = Vector2.zero;  //居中
 
             // 清空图标
-            tip.iconImg.sprite = null;
+            marker.iconImg.sprite = null;
             // 重置颜色
-            tip.iconImg.color = Color.white;
-            tip.backgroundColor = Color.white;
+            marker.iconImg.color = Color.white;
+            marker.backgroundColor = Color.white;
             // 重置缩放
-            tip.transform.localScale = Vector3.one;
+            marker.transform.localScale = Vector3.one;
             // 重置 alpha
-            tip.alpha = 1f;
+            marker.alpha = 1f;
             //移除监听器
-            tip.onPointerEnter.RemoveAllListeners();
-            tip.onPointerExit.RemoveAllListeners();
+            marker.onPointerEnter.RemoveAllListeners();
+            marker.onPointerExit.RemoveAllListeners();
         }
-        public void ConfigureMarker(DolocNavigationButton tip, NpcInfo npc, bool isAbnormalPos)
+        public void ConfigureMarker(DolocNavigationButton marker, NpcInfo npc, bool isAbnormalPos)
         {
-            ResetTip(tip);  //初始化 tip
-
-            Debug.Log($"iconImg activeSelf = {tip.iconImg.gameObject.activeSelf}, sprite = {tip.iconImg.sprite}");
+            //重置样式
+            ResetTip(marker);  
 
             // 坐标
-            tip.position = npc.MapPosition;
+            marker.position = npc.MapPosition;
             // 随机偏移避免完全重叠 
-            tip.position += new Vector2(UnityEngine.Random.Range(-3f, 3f), 0f);
+            marker.position += new Vector2(UnityEngine.Random.Range(-3f, 3f), 0f);
             // 贴地
-            tip.position += new Vector2(0f, -5f);
+            marker.position += new Vector2(0f, -5f);
             // 透明度
-            tip.alpha = 0.8f; 
+            marker.alpha = 0.8f; 
 
             switch (_iconType)
             {
@@ -211,15 +206,15 @@ namespace NpcMapMarkers_Doloctown
                     {
                         if (npc.HasKnownName)
                         {
-                            tip.iconImg.sprite = DolocAPI.GetAsset<Sprite>("支线任务标记");
-                            tip.iconSize = new Vector2(24f, 32f);
-                            tip.iconImg.color = ColorFrom255(120, 166, 85);//绿色
+                            marker.iconImg.sprite = DolocAPI.GetAsset<Sprite>("支线任务标记");
+                            marker.iconSize = new Vector2(24f, 32f);
+                            marker.iconImg.color = ColorFrom255(120, 166, 85);//绿色
                         }
                         else
                         {
-                            tip.iconImg.sprite = DolocAPI.GetAsset<Sprite>("支线任务标记");
-                            tip.iconSize = new Vector2(24f, 32f);
-                            tip.iconImg.color = ColorFrom255(111, 111, 111);//灰色
+                            marker.iconImg.sprite = DolocAPI.GetAsset<Sprite>("支线任务标记");
+                            marker.iconSize = new Vector2(24f, 32f);
+                            marker.iconImg.color = ColorFrom255(111, 111, 111);//灰色
                         }
                         break;
                     }
@@ -255,24 +250,24 @@ namespace NpcMapMarkers_Doloctown
                                 break;
                             }
                         }
-                        tip.iconImg.sprite = DolocAPI.GetAsset<Sprite>(iconSpriteName);
+                        marker.iconImg.sprite = DolocAPI.GetAsset<Sprite>(iconSpriteName);
 
-                        //if (!tip.iconImg.sprite)
+                        //if (!marker.iconImg.sprite)
                         //{
-                        //    tip.iconImg.sprite = DolocAPI.GetAsset<Sprite>($"{npc.Name}_icon");
+                        //    marker.iconImg.sprite = DolocAPI.GetAsset<Sprite>($"{npc.Name}_icon");
                         //}
-                        tip.iconSize = new Vector2(40f, 40f);
+                        marker.iconSize = new Vector2(40f, 40f);
                         break;
                     }
                 default:
-                    Debug.LogWarning($"未知的图标类型: {_iconType}");
+                    ModLog.Logger.Log($"未知的图标类型: {_iconType}", Debug.LogWarning);
                     break;
             }
 
             //  创建 hover 文本;添加 hover 监听器
             string hoverTitle = npc.OriginTitle + npc.Name;
-            string hoverInfo = npc.Scene + " - " + npc.Status;
-            string hoverContent = npc.MapPosition.ToString("F2");
+            string hoverInfo = npc.Scene;
+            string hoverContent = npc.Status;
 
             if (isAbnormalPos)
             {
@@ -281,13 +276,13 @@ namespace NpcMapMarkers_Doloctown
 
             TextGroup textGroup = new TextGroup(hoverTitle, hoverInfo, hoverContent);
 
-            tip.onPointerEnter.AddListener(delegate (int _)
+            marker.onPointerEnter.AddListener(delegate (int _)
             {
-                tip.HoverText(textGroup, UIAlignmentType.TopMiddle, UIAlignmentType.BottomMiddle);
+                marker.HoverText(textGroup, UIAlignmentType.TopMiddle, UIAlignmentType.BottomMiddle);
             });
-            tip.onPointerExit.AddListener(delegate (int _)
+            marker.onPointerExit.AddListener(delegate (int _)
             {
-                tip.HideHoverBox();
+                marker.HideHoverBox();
             });
         }
 
@@ -295,7 +290,7 @@ namespace NpcMapMarkers_Doloctown
         {
             var temCount = 0;
             // 先回收池中所有tip，隐藏全部，防止旧数据残留
-            tipPool.RecycleAll(); 
+            _markerPool.RecycleAll(); 
 
             foreach (var npc in list)
             {
@@ -303,18 +298,19 @@ namespace NpcMapMarkers_Doloctown
                 ModLog.Logger.Log($"{npc.OriginTitle}-{npc.Name}");
 
                 // 从对象池中取一个新的导航按钮
-                var tip = tipPool.Next;
-                if (tip) tip.gameObject.SetActive(false);
+                var marker = _markerPool.Next;
 
-                if (!tip)
+                if (!marker)
                 {
-                    tipPool.Recycle(tip);
-                    ModLog.Logger.Log("未能从池中获取 tip 对象！",Debug.LogError);
+                    ModLog.Logger.Log("未能从池中获取 tip 对象！", Debug.LogError);
                     continue;
                 }
+
+                if (marker) marker.gameObject.SetActive(false);
+
                 if (npc.IsAtVoidScene)
                 {
-                    tipPool.Recycle(tip);
+                    _markerPool.Recycle(marker);
                     ModLog.Logger.Log("NPC位于虚空", Debug.LogError);
                     continue;
                 }
@@ -322,7 +318,7 @@ namespace NpcMapMarkers_Doloctown
                 // 缓存异常排除
                 DolocAPI.QueryRoom(npc.Scene, out Room room);
                 MapArea mapArea;
-                var roomAreaCache = Traverse.Create(cityMapPanel).Field<Dictionary<string, MapArea>>("roomAreaCache").Value;
+                var roomAreaCache = Traverse.Create(_cityMapPanel).Field<Dictionary<string, MapArea>>("roomAreaCache").Value;
 
                 if (!roomAreaCache.TryGetValue(room.SceneRawName, out mapArea) && !roomAreaCache.TryGetValue(room.RoomId, out mapArea))
                 {
@@ -345,10 +341,10 @@ namespace NpcMapMarkers_Doloctown
                 bool isAbnormalPos = isCornerPos || isZeroPos;
 
 
-                ConfigureMarker(tip, npc, isAbnormalPos);
+                ConfigureMarker(marker, npc, isAbnormalPos);
 
 
-                tip.gameObject.SetActive(true);
+                marker.gameObject.SetActive(true);
 
                 ModLog.Logger.Log($"WorldPosition: {npc.WorldPosition} - MapPosition: {npc.MapPosition} - 转换后Percent: {percent}");
 
@@ -360,22 +356,22 @@ namespace NpcMapMarkers_Doloctown
     // 
     public class NpcDataManager
     {
-        public List<Npc> OriginNpcList;
-        public CityMapPanel CityMapPanelInstance;
-        public List<NpcInfo> MyNpcList;
-        public string CurrentMapId;
+        private readonly List<Npc> _originNpcList;
+        private readonly CityMapPanel _cityMapPanelInstance;
+        private readonly List<NpcInfo> _npcInfos;
+        private readonly string _currentMapId;
         public NpcDataManager(CityMapPanel cityMapPanel, IEnumerable<Npc> npcs)
         {
-            CityMapPanelInstance = cityMapPanel;
-            CurrentMapId = CityMapPanelInstance.MapId;
+            _cityMapPanelInstance = cityMapPanel;
+            _currentMapId = _cityMapPanelInstance.MapId;
 
-            OriginNpcList = npcs.ToList();
-            MyNpcList = new List<NpcInfo>();
+            _originNpcList = npcs.ToList();
+            _npcInfos = new List<NpcInfo>();
 
-            foreach (var npc in OriginNpcList)
+            foreach (var npc in _originNpcList)
             {
-                var i = new NpcInfo(npc, CityMapPanelInstance);
-                MyNpcList.Add(i);
+                var i = new NpcInfo(npc, _cityMapPanelInstance);
+                _npcInfos.Add(i);
             }
         }
 
@@ -408,7 +404,7 @@ namespace NpcMapMarkers_Doloctown
         {
             var result = new List<NpcInfo>();
 
-            foreach (var npc in MyNpcList)
+            foreach (var npc in _npcInfos)
             {
                 if (!isShowUnknownNpc && !npc.HasKnownName)
                     continue;
@@ -416,7 +412,7 @@ namespace NpcMapMarkers_Doloctown
                 if (!DolocAPI.QueryRoom(npc.Scene, out Room room))
                     continue;
 
-                if (room?.SceneConfig?.MapId != CurrentMapId)
+                if (room?.SceneConfig?.MapId != _currentMapId)
                     continue;
 
                 result.Add(npc);
@@ -462,6 +458,9 @@ namespace NpcMapMarkers_Doloctown
 
                 // 是否处于虚空场景
                 IsAtVoidScene = npc.IsAtVoidScene;
+
+
+
             }
 
             private string GetNpcTask(Npc npc)

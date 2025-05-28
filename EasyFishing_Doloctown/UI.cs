@@ -37,7 +37,7 @@ namespace UI_Doloctown
 
             }
 
-            Debug.Log($"targetCanvas------:{targetCanvas.name}");
+            //Debug.Log($"targetCanvas------:{targetCanvas.name}");
 
             // 2. 创建消息框背景
             messageBoxGO = new GameObject("MessageBox");
@@ -54,7 +54,7 @@ namespace UI_Doloctown
 
             // 设置字体
             Font unityFont = Resources.FindObjectsOfTypeAll<Font>().FirstOrDefault(f => f.name == "DinkieBitmap-9px");
-            Debug.Log($"unityFont------:{unityFont.name}");
+            //Debug.Log($"unityFont------:{unityFont.name}");
             if (unityFont != null)
             {
                 TMP_FontAsset tmpFont = TMP_FontAsset.CreateFontAsset(unityFont);

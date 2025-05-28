@@ -10,6 +10,17 @@ namespace NpcMapMarkers_Doloctown
 {
     internal class Deletcode
     {
+        // 礼物（过于庞大了）
+        //NpcLikingProto npcLikingProto;
+        //string s = "";
+
+        //    foreach (var i in DolocConfig.Tables.TbNpcLikingProtos.DataList)
+        //{
+        //    s += i.ToString();
+        //}
+        ////Debug.LogWarning(npc.OriginTitle + npc.proto?.GiftDialogue);
+        //Debug.LogWarning(npc.OriginTitle + s);
+
         //public static class ImageCropper
         //{
             //public static void ShowLeftHalf(Image image)
