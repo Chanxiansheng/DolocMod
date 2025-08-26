@@ -44,6 +44,10 @@ namespace NpcMapMarkers_Doloctown
         {
             // 1. 获取预制体
             var prefab = DolocAPI.GetAsset<GameObject>(DolocGameAssets.UI_ELEMENT_MAP_MISSION_TIP);
+
+            ModLog.Logger.Log("获取了 prefab");
+
+
             if (!prefab)
             {
                 ModLog.Logger.Log("获取 prefab 失败！", Debug.LogError);
@@ -73,8 +77,6 @@ namespace NpcMapMarkers_Doloctown
                 int cursorIndex = cursor.GetSiblingIndex();
                 markerRoot.SetSiblingIndex(cursorIndex);
             }
-
-
 
             var pool = new ObjectPool<DolocNavigationButton>(prefab, markerRoot, false, false);
 

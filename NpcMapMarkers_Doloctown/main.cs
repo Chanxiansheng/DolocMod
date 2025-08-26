@@ -18,13 +18,13 @@ namespace NpcMapMarkers_Doloctown
 {
     public static class ModLog
     {
-        public static readonly ModLogger Logger = new ModLogger("NpcMapMarkers_Doloctown", isDebug: false);
+        public static readonly ModLogger Logger = new ModLogger("NpcMapMarkers_Doloctown", isDebug: true);
     }
 
     [BepInPlugin(ModGuid, ModName, ModVersion)]
     public class NpcMapMarkers : BaseUnityPlugin
     {
-        private const string ModGuid = "YourCompany.NpcMapMarkers_Doloctown";
+        private const string ModGuid = "Chun.NpcMapMarkers_Doloctown";
         private const string ModName = "NpcMapMarkers_Doloctown";
         private const string ModVersion = "1.0";
 
@@ -103,7 +103,13 @@ namespace NpcMapMarkers_Doloctown
             [HarmonyPostfix, HarmonyPatch(typeof(CityMapPanel), "__Init")]
             private static void CityMapPanel_Init_Postfix(CityMapPanel __instance)
             {
-                ObjectPoolManager.InitPool(__instance);
+                try
+                {
+                    ObjectPoolManager.InitPool(__instance);
+                }
+                catch (Exception ex) {
+                    ModLog.Logger.Log(ex.Message);
+                }
             }
 
             // 2. 打开地图注册
