@@ -18,7 +18,7 @@ namespace NpcMapMarkers_Doloctown
 {
     public static class ModLog
     {
-        public static readonly ModLogger Logger = new ModLogger("NpcMapMarkers_Doloctown", isDebug: true);
+        public static readonly ModLogger Logger = new ModLogger("NpcMapMarkers_Doloctown", isDebug: false);
     }
 
     [BepInPlugin(ModGuid, ModName, ModVersion)]
@@ -522,12 +522,14 @@ namespace NpcMapMarkers_Doloctown
                 //MapPosition = mapArea.GetPosByPercent(vector.x, vector.y);
 
 
-                ModLog.Logger.Log($"-----------\n" +
-                    $"name:{ Name }\n" +
-                    //$"hasCache:{hasCache}\n" +
-                    $"Scene:{Scene }\n" +
-                    $"room:{ room }\n" +
-                    $"MapPosition:{ MapPosition }\n");
+                //ModLog.Logger.Log($"-----------\n" +
+                //    $"name:{ Name }\n" +
+                //    //$"hasCache:{hasCache}\n" +
+                //    $"Scene:{Scene }\n" +
+                //    $"room:{ room }\n" +
+                //    $"MapPosition:{ MapPosition }\n");
+
+
                 // npc在做什么
                 //NpcStatusInfo = npc.NpcStatusInfo;
                 Status = GetNpcTask(npc);
@@ -541,7 +543,7 @@ namespace NpcMapMarkers_Doloctown
             {
                 if (npc.controller?.CurrentTaskType == null)
                 {
-                    return "该npc无控制器或任务类型";
+                    return "该npc暂无控制器";
                 }
                 Type taskType = npc.controller.CurrentTaskType;
                 string taskText;
@@ -552,7 +554,7 @@ namespace NpcMapMarkers_Doloctown
                 }
                 else if (taskType == typeof(NpcTaskMove))
                 {
-                    taskText = "前往目标场景:" + Traverse.Create(npc).Field<string>("_currentJourneyInfo").Value;  // 如果是 private，可用 Harmony Traverse 访问
+                    taskText = "前往目标场景:" + Traverse.Create(npc).Field<string>("_currentJourneyInfo").Value;  
                 }
                 else
                 {
