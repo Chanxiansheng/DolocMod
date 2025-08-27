@@ -9,7 +9,7 @@ namespace NpcMapMarkers_Doloctown
     public static class ObjectPoolManager
     {
         private static readonly ConditionalWeakTable<CityMapPanel, ObjectPool<DolocNavigationButton>> PoolsWeakTable = new ConditionalWeakTable<CityMapPanel, ObjectPool<DolocNavigationButton>>();
-
+        private const int DEFAULT_POOL_SIZE = 10;
         /// <summary>
         /// 主动初始化/重建对象池。如果存在旧的，会先清空并移除再创建新池。
         /// </summary>
@@ -22,7 +22,14 @@ namespace NpcMapMarkers_Doloctown
                 ModLog.Logger.Log($"重置旧池 panel={panel.GetInstanceID()}");
             }
             var newPool = CreatePool(panel);
-            PoolsWeakTable.Add(panel, newPool);
+            if (newPool != null) // 添加空检查
+            {
+                PoolsWeakTable.Add(panel, newPool);
+            }
+            else
+            {
+                ModLog.Logger.Log($"创建对象池失败 panel={panel.GetInstanceID()}", Debug.LogError);
+            }
         }
 
         /// <summary>
@@ -57,6 +64,13 @@ namespace NpcMapMarkers_Doloctown
             // 2. 获取根节点
             var tipRoot = Traverse.Create(panel).Field<Transform>("tipRoot").Value;
             var parent = tipRoot.parent; // 获取 tipRoot 的父物体
+            if (tipRoot == null)
+            {
+                ModLog.Logger.Log("无法获取 tipRoot", Debug.LogError);
+                return null;
+            }
+
+
             Transform markerRoot = parent.Find("markerRoot");
             if (!markerRoot)
             {
@@ -86,7 +100,7 @@ namespace NpcMapMarkers_Doloctown
             };
 
             pool.RecycleAll();
-            pool.CheckCount(10);
+            pool.CheckCount(DEFAULT_POOL_SIZE);
             pool.ForEach(tip => tip.gameObject.SetActive(false));
 
             ModLog.Logger.Log($"创建新池 panel={panel.GetInstanceID()}");
