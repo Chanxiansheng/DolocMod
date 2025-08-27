@@ -324,7 +324,8 @@ namespace NpcMapMarkers_Doloctown
 
             foreach (var npc in list)
             {
-                //ModLog.Logger.Log((++temCount).ToString());
+                ++temCount;
+                //ModLog.Logger.Log((temCount).ToString());
                 //ModLog.Logger.Log($"{npc.OriginTitle}-{npc.Name}");
 
                 // 从对象池中取一个新的导航按钮
@@ -488,17 +489,45 @@ namespace NpcMapMarkers_Doloctown
 
 
                 // 世界坐标转地图坐标
-                // 世界坐标转地图坐标
-                if (!cityMapPanel.GetMapPosByWorldPosition(Scene, WorldPosition, out Vector2 mapPos))
-                {
-                    ModLog.Logger.Log($"NPC {OriginTitle} 坐标转换失败", Debug.LogWarning);
-                    MapPosition = Vector2.zero; // 使用默认值
-                }
-                else
+                if (DolocAPI.QueryRoom(Scene, out Room room) &&
+    cityMapPanel.GetMapPosByWorldPosition(room, WorldPosition, out Vector2 mapPos))
                 {
                     MapPosition = mapPos;
                 }
+                else
+                {
+                    MapPosition = Vector2.zero;
+                }
 
+                //var t = Traverse.Create(cityMapPanel);
+                //DolocAPI.QueryRoom(Scene, out Room room);
+                //object[] args = new object[] { room, null };
+                //t.Method("GetMapPosByRoomDefault", new[] { typeof(Room), typeof(Vector2).MakeByRefType() })
+                //             .GetValue<bool>(args);
+                //MapPosition = (Vector2)args[1];
+
+
+
+
+                //MapArea mapArea;
+                //var roomAreaCache = Traverse.Create(cityMapPanel).Field < Dictionary < string, MapArea >> ("roomAreaCache").Value;
+                //var hasCache = true;
+                //if (!roomAreaCache.TryGetValue(room.SceneRawName, out mapArea) && !roomAreaCache.TryGetValue(room.RoomId, out mapArea))
+                //{
+                //    hasCache = false;
+                //}
+
+                //Vector2 vector = room.Geometry.CalPosPercent(WorldPosition);
+
+                //MapPosition = mapArea.GetPosByPercent(vector.x, vector.y);
+
+
+                ModLog.Logger.Log($"-----------\n" +
+                    $"name:{ Name }\n" +
+                    //$"hasCache:{hasCache}\n" +
+                    $"Scene:{Scene }\n" +
+                    $"room:{ room }\n" +
+                    $"MapPosition:{ MapPosition }\n");
                 // npc在做什么
                 //NpcStatusInfo = npc.NpcStatusInfo;
                 Status = GetNpcTask(npc);

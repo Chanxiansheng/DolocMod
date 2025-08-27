@@ -3,13 +3,15 @@ using System.Runtime.CompilerServices;
 using RedSaw;
 using UnityEngine;
 using HarmonyLib;
+using System.Reflection;
+using System;
 
 namespace NpcMapMarkers_Doloctown
 {
     public static class ObjectPoolManager
     {
         private static readonly ConditionalWeakTable<CityMapPanel, ObjectPool<DolocNavigationButton>> PoolsWeakTable = new ConditionalWeakTable<CityMapPanel, ObjectPool<DolocNavigationButton>>();
-        private const int DEFAULT_POOL_SIZE = 10;
+        private const int DEFAULT_POOL_SIZE = 5;
         /// <summary>
         /// 主动初始化/重建对象池。如果存在旧的，会先清空并移除再创建新池。
         /// </summary>
@@ -44,16 +46,59 @@ namespace NpcMapMarkers_Doloctown
             return null;
         }
 
+        // 缓存反射Prefab
+        private static GameObject _cachedPrefab;
+        private static bool _prefabCacheAttempted = false;
+        private static GameObject GetMissionTipPrefab()
+        {
+
+            if (_prefabCacheAttempted && _cachedPrefab != null)
+            {
+                return _cachedPrefab;
+            }
+
+            _prefabCacheAttempted = true;
+
+            try
+            {
+                // 已知的资源ID字符串
+                string assetId = "ui_element_map_mission_tip"; 
+
+                var dolocApiType = Type.GetType("DolocAPI, Assembly-CSharp");
+                if (dolocApiType == null)
+                {
+                    ModLog.Logger.Log("无法找到 DolocAPI 类型", Debug.LogError);
+                    return null;
+                }
+
+                var getAssetMethod = dolocApiType.GetMethod(
+                    "GetAsset", 
+                    BindingFlags.Static | BindingFlags.Public,      
+                    null,
+                    new Type[] { typeof(string) },
+                    null);
+                if (getAssetMethod != null)
+                {
+                    var genericMethod = getAssetMethod.MakeGenericMethod(typeof(GameObject));
+                    _cachedPrefab = (GameObject)genericMethod.Invoke(null, new object[] { assetId });
+                }
+
+                ModLog.Logger.Log(_cachedPrefab != null ? "反射获取预制体成功" : "反射获取预制体失败");
+                return _cachedPrefab;
+            }
+            catch (System.Exception ex)
+            {
+                ModLog.Logger.Log($"反射获取预制体异常: {ex.Message}", Debug.LogError);
+                return null;
+            }
+        }
         /// <summary>
         /// 创建一个新的对象池
         /// </summary>
         private static ObjectPool<DolocNavigationButton> CreatePool(CityMapPanel panel)
         {
-            // 1. 获取预制体
-            var prefab = DolocAPI.GetAsset<GameObject>(DolocGameAssets.UI_ELEMENT_MAP_MISSION_TIP);
-
-            ModLog.Logger.Log("获取了 prefab");
-
+            // 1. 获取预制体（使用反射缓存，避免编译时依赖）
+            var prefab = GetMissionTipPrefab();
 
             if (!prefab)
             {
@@ -63,10 +108,15 @@ namespace NpcMapMarkers_Doloctown
 
             // 2. 获取根节点
             var tipRoot = Traverse.Create(panel).Field<Transform>("tipRoot").Value;
-            var parent = tipRoot.parent; // 获取 tipRoot 的父物体
             if (tipRoot == null)
             {
                 ModLog.Logger.Log("无法获取 tipRoot", Debug.LogError);
+                return null;
+            }
+            var parent = tipRoot.parent; // 获取 tipRoot 的父物体
+            if (parent == null)
+            {
+                ModLog.Logger.Log("tipRoot 没有父物体", Debug.LogError);
                 return null;
             }
 
