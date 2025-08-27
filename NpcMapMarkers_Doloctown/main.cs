@@ -24,7 +24,7 @@ namespace NpcMapMarkers_Doloctown
     [BepInPlugin(ModGuid, ModName, ModVersion)]
     public class NpcMapMarkers : BaseUnityPlugin
     {
-        private const string ModGuid = "Chun.NpcMapMarkers_Doloctown";
+        private const string ModGuid = "Chun.Plugin.NpcMapMarkers_Doloctown";
         private const string ModName = "NpcMapMarkers_Doloctown";
         private const string ModVersion = "1.0";
 
